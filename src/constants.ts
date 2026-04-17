@@ -12,18 +12,22 @@
  */
 
 export const PLUGIN_ID = "mimrlabs-claw3d";
-export const PLUGIN_VERSION = "0.2.0";
+export const PLUGIN_VERSION = "0.3.0";
 
-/** Slot IDs referenced from the manifest. */
+/**
+ * Slot IDs referenced from the manifest.
+ *
+ * Note: `dashboardWidget` was removed in 0.3.0 — the sidebar link is the only
+ * entry point now. The DashboardWidget.tsx source is retained (unexported)
+ * so it's one edit away if we want to bring the tile back.
+ */
 export const SLOT_IDS = {
-  dashboardWidget: "claw3d-dashboard-widget",
   sidebar: "claw3d-sidebar",
   settingsPage: "claw3d-settings",
 } as const;
 
 /** Named UI exports — must match the keys on the `./dist/ui/index.js` module. */
 export const EXPORT_NAMES = {
-  dashboardWidget: "DashboardWidget",
   sidebar: "SidebarLink",
   settingsPage: "SettingsPage",
 } as const;

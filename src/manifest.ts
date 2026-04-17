@@ -21,12 +21,11 @@ const manifest: PaperclipPluginManifestV1 = {
   version: PLUGIN_VERSION,
   displayName: "Claw3D — Office Launcher",
   description:
-    "Dashboard + sidebar launcher for the Claw3D 3D office. Opens the " +
-    "deployed Claw3D app (default: office.mimrlabs.cloud) in a new tab.",
+    "Sidebar launcher for the Claw3D 3D office. Opens the deployed Claw3D " +
+    "app (default: office.mimrlabs.cloud) in a new tab.",
   author: "MIMR Labs",
   categories: ["ui"],
   capabilities: [
-    "ui.dashboardWidget.register",
     "ui.sidebar.register",
     "ui.page.register",
     "plugin.state.read",
@@ -61,12 +60,6 @@ const manifest: PaperclipPluginManifestV1 = {
   },
   ui: {
     slots: [
-      {
-        type: "dashboardWidget",
-        id: SLOT_IDS.dashboardWidget,
-        displayName: "Claw3D — Office",
-        exportName: EXPORT_NAMES.dashboardWidget,
-      },
       {
         type: "sidebar",
         id: SLOT_IDS.sidebar,
