@@ -12,10 +12,11 @@ import { useEffect, type CSSProperties } from "react";
 import {
   useHostContext,
   usePluginData,
-  usePluginStream,
 } from "@paperclipai/plugin-sdk/ui";
-import { DATA_KEYS, DEFAULT_CONFIG, STREAM_CHANNELS } from "../constants.js";
+import { DATA_KEYS, DEFAULT_CONFIG } from "../constants.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
+
+const POLL_INTERVAL_MS = 10_000;
 
 interface AgentListItem {
   id: string;
@@ -27,10 +28,6 @@ interface AgentListItem {
 interface OfficeLayout {
   deskIds: string[];
   deskMap: Record<string, { deskId: string }>;
-}
-
-interface ActivityEvent {
-  eventId: string;
 }
 
 interface ConfigSnapshot {
@@ -66,17 +63,15 @@ export function OfficeLauncher() {
   );
   const layoutQuery = usePluginData<OfficeLayout>(DATA_KEYS.officeLayout);
   const configQuery = usePluginData<ConfigSnapshot>(DATA_KEYS.config);
-  const stream = usePluginStream<ActivityEvent>(
-    STREAM_CHANNELS.activity,
-    companyId ? { companyId } : undefined,
-  );
 
-  // Refresh whenever the activity stream pushes something.
-  const lastEventId = stream.lastEvent?.eventId ?? null;
+  // Poll while the launcher is open. Stream endpoint would be ideal but the
+  // host doesn't wire `bridgeDeps.streamBus`; see DashboardWidget header.
   useEffect(() => {
-    if (!lastEventId) return;
-    agentsQuery.refresh();
-  }, [lastEventId, agentsQuery]);
+    const id = window.setInterval(() => {
+      agentsQuery.refresh();
+    }, POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [agentsQuery]);
 
   // Request the widest modal bounds the host will give us while open.
   useEffect(() => {
@@ -91,19 +86,13 @@ export function OfficeLauncher() {
   const accentColor =
     configQuery.data?.accentColor ?? DEFAULT_CONFIG.accentColor;
 
-  const liveLabel = stream.connected
-    ? "live"
-    : stream.connecting
-      ? "connecting"
-      : "offline";
-
   return (
     <div style={shellStyle} aria-label="Claw3D full office view">
       <div style={headerStyle}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <strong style={{ fontSize: 16 }}>Claw3D · Office</strong>
           <span style={{ fontSize: 12, opacity: 0.7 }}>
-            {agents.length} agents · stream {liveLabel}
+            {agents.length} agents
           </span>
         </div>
         {agentsQuery.error && (

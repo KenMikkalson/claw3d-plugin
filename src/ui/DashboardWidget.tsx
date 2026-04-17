@@ -5,20 +5,25 @@
  * Data flow:
  *   worker `agents` getData        →  usePluginData("agents")
  *   worker `office-layout` getData →  usePluginData("office-layout")
- *   worker `activity` SSE stream   →  usePluginStream("activity")  (bumps a
- *                                      "recently active" highlight, so the
- *                                      placeholder scene visibly reacts to
- *                                      host events even before R3F lands)
+ *   worker `config` getData        →  usePluginData("config")
+ *
+ * NOTE on streaming: the plan originally called for `usePluginStream("activity")`
+ * to drive an "agents moving between desks" animation. Paperclip's host
+ * currently boots plugin routes with `bridgeDeps = { workerManager }` only —
+ * no `streamBus` — so the SSE endpoint 501s. Until the host wires a stream
+ * bus, we poll the agent list on an interval instead. Swap back when
+ * `bridgeDeps.streamBus` lands upstream.
  */
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   usePluginData,
-  usePluginStream,
   type PluginWidgetProps,
 } from "@paperclipai/plugin-sdk/ui";
-import { DATA_KEYS, DEFAULT_CONFIG, STREAM_CHANNELS } from "../constants.js";
+import { DATA_KEYS, DEFAULT_CONFIG } from "../constants.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
+
+const POLL_INTERVAL_MS = 10_000;
 
 interface AgentListItem {
   id: string;
@@ -30,16 +35,6 @@ interface AgentListItem {
 interface OfficeLayout {
   deskIds: string[];
   deskMap: Record<string, { deskId: string }>;
-}
-
-interface ActivityEvent {
-  eventId: string;
-  eventType: string;
-  actorId: string | null;
-  actorType: string | null;
-  entityId: string | null;
-  entityType: string | null;
-  occurredAt: string;
 }
 
 interface ConfigSnapshot {
@@ -97,18 +92,15 @@ export function DashboardWidget({ context }: PluginWidgetProps) {
   );
   const layoutQuery = usePluginData<OfficeLayout>(DATA_KEYS.officeLayout);
   const configQuery = usePluginData<ConfigSnapshot>(DATA_KEYS.config);
-  const stream = usePluginStream<ActivityEvent>(
-    STREAM_CHANNELS.activity,
-    companyId ? { companyId } : undefined,
-  );
 
-  // Re-poll the agent list whenever the stream tells us something changed —
-  // cheap, and keeps the placeholder feeling alive without Three.js yet.
-  const lastEventId = stream.lastEvent?.eventId ?? null;
+  // Poll the agent list on an interval. Cheap, and keeps statuses fresh
+  // without a real event stream (see file header note).
   useEffect(() => {
-    if (!lastEventId) return;
-    agentsQuery.refresh();
-  }, [lastEventId, agentsQuery]);
+    const id = window.setInterval(() => {
+      agentsQuery.refresh();
+    }, POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [agentsQuery]);
 
   const [collapsed, setCollapsed] = useState(false);
 
@@ -119,17 +111,10 @@ export function DashboardWidget({ context }: PluginWidgetProps) {
     configQuery.data?.accentColor ?? DEFAULT_CONFIG.accentColor;
 
   const statusBadge = useMemo(() => {
-    if (agentsQuery.loading) return "loading…";
+    if (agentsQuery.loading && agents.length === 0) return "loading…";
     if (agentsQuery.error) return `error: ${agentsQuery.error.code}`;
-    const live = stream.connected ? "● live" : stream.connecting ? "● …" : "○";
-    return `${agents.length} agents · ${live}`;
-  }, [
-    agents.length,
-    agentsQuery.error,
-    agentsQuery.loading,
-    stream.connected,
-    stream.connecting,
-  ]);
+    return `${agents.length} agents`;
+  }, [agents.length, agentsQuery.error, agentsQuery.loading]);
 
   return (
     <div style={cardStyle} aria-label="Claw3D office widget">
