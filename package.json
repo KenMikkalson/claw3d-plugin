@@ -1,6 +1,6 @@
 {
   "name": "@mimrlabs/plugin-claw3d",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Paperclip launcher tile for the Claw3D 3D office app.",
   "license": "MIT",
   "type": "module",
