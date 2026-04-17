@@ -7,4 +7,3 @@
 export { DashboardWidget } from "./DashboardWidget.js";
 export { SidebarLink } from "./SidebarLink.js";
 export { SettingsPage } from "./SettingsPage.js";
-export { OfficeLauncher } from "./OfficeLauncher.js";

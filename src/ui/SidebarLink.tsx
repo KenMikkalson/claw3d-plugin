@@ -1,15 +1,19 @@
 /**
  * Sidebar entry — a single link under the global Paperclip sidebar that
- * triggers the full-screen office launcher. Purely presentational: data
- * fetching happens inside the modal, not here.
+ * opens the deployed Claw3D app (default: office.mimrlabs.cloud).
  */
 
 import type { CSSProperties } from "react";
 import {
-  useHostContext,
+  usePluginData,
   type PluginSidebarProps,
 } from "@paperclipai/plugin-sdk/ui";
-import { LAUNCHER_IDS } from "../constants.js";
+import { DATA_KEYS, DEFAULT_CONFIG } from "../constants.js";
+
+interface ConfigSnapshot {
+  officeUrl?: string;
+  openInNewTab?: boolean;
+}
 
 const linkStyle: CSSProperties = {
   display: "flex",
@@ -21,30 +25,20 @@ const linkStyle: CSSProperties = {
   textDecoration: "none",
   fontSize: 13,
   fontWeight: 500,
-  cursor: "pointer",
-  background: "transparent",
-  border: "none",
   width: "100%",
-  textAlign: "left",
 };
 
-function openLauncher() {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent("paperclip:plugin-launcher:open", {
-      detail: { launcherId: LAUNCHER_IDS.office },
-    }),
-  );
-}
-
 export function SidebarLink(_props: PluginSidebarProps) {
-  // Reading context is a no-op here, but surfaces the host context for
-  // future per-company theming without a prop-shape change.
-  useHostContext();
+  const configQuery = usePluginData<ConfigSnapshot>(DATA_KEYS.config);
+  const officeUrl = configQuery.data?.officeUrl ?? DEFAULT_CONFIG.officeUrl;
+  const openInNewTab =
+    configQuery.data?.openInNewTab ?? DEFAULT_CONFIG.openInNewTab;
+
   return (
-    <button
-      type="button"
-      onClick={openLauncher}
+    <a
+      href={officeUrl}
+      target={openInNewTab ? "_blank" : undefined}
+      rel={openInNewTab ? "noreferrer noopener" : undefined}
       style={linkStyle}
       aria-label="Open Claw3D office view"
     >
@@ -64,6 +58,6 @@ export function SidebarLink(_props: PluginSidebarProps) {
         <path d="M9 20v-5h6v5" />
       </svg>
       <span>Office</span>
-    </button>
+    </a>
   );
 }

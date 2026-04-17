@@ -1,15 +1,10 @@
 /**
- * SettingsPage — operator-facing form for Claw3D instance config.
+ * SettingsPage — operator-facing form for the Claw3D launcher.
  *
- * Overrides the host's auto-generated JSON Schema form declared by
- * `manifest.ts:instanceConfigSchema`. The host still validates the submitted
- * config against that schema server-side, so the form here only needs to
- * surface the fields in a usable way.
- *
- * Reads via `usePluginData("plugin-config")` (handler registered in the
- * worker). Writes via POST to the host's plugin config endpoint, matching
- * the kitchen-sink reference — `ctx.config` is read-only from the worker so
- * there is no "update-config" action round-trip.
+ * Config is minimal: where does the deployed Claw3D app live, and should we
+ * open it in a new tab. Writes go through the host's plugin config endpoint
+ * (`ctx.config` is read-only from the worker, so there's no update-config
+ * RPC to round-trip through).
  */
 
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
@@ -20,12 +15,8 @@ import {
 import { DATA_KEYS, DEFAULT_CONFIG, PLUGIN_ID } from "../constants.js";
 
 type ConfigShape = {
-  cameraYawDeg: number;
-  cameraPitchDeg: number;
-  floorColor: string;
-  accentColor: string;
-  pollIntervalSeconds: number;
-  agentDeskMap: Record<string, { deskId: string }>;
+  officeUrl: string;
+  openInNewTab: boolean;
 };
 
 const pageStyle: CSSProperties = {
@@ -54,12 +45,6 @@ const inputStyle: CSSProperties = {
   fontSize: 13,
 };
 
-const textareaStyle: CSSProperties = {
-  ...inputStyle,
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-  minHeight: 120,
-};
-
 const primaryButtonStyle: CSSProperties = {
   padding: "8px 14px",
   border: "none",
@@ -74,26 +59,14 @@ const primaryButtonStyle: CSSProperties = {
 function mergeDefaults(raw: Record<string, unknown> | null | undefined): ConfigShape {
   const r = raw ?? {};
   return {
-    cameraYawDeg:
-      typeof r.cameraYawDeg === "number"
-        ? r.cameraYawDeg
-        : DEFAULT_CONFIG.cameraYawDeg,
-    cameraPitchDeg:
-      typeof r.cameraPitchDeg === "number"
-        ? r.cameraPitchDeg
-        : DEFAULT_CONFIG.cameraPitchDeg,
-    floorColor:
-      typeof r.floorColor === "string" ? r.floorColor : DEFAULT_CONFIG.floorColor,
-    accentColor:
-      typeof r.accentColor === "string" ? r.accentColor : DEFAULT_CONFIG.accentColor,
-    pollIntervalSeconds:
-      typeof r.pollIntervalSeconds === "number"
-        ? r.pollIntervalSeconds
-        : DEFAULT_CONFIG.pollIntervalSeconds,
-    agentDeskMap:
-      r.agentDeskMap && typeof r.agentDeskMap === "object"
-        ? (r.agentDeskMap as ConfigShape["agentDeskMap"])
-        : { ...DEFAULT_CONFIG.agentDeskMap },
+    officeUrl:
+      typeof r.officeUrl === "string" && r.officeUrl.trim()
+        ? r.officeUrl
+        : DEFAULT_CONFIG.officeUrl,
+    openInNewTab:
+      typeof r.openInNewTab === "boolean"
+        ? r.openInNewTab
+        : DEFAULT_CONFIG.openInNewTab,
   };
 }
 
@@ -102,19 +75,13 @@ export function SettingsPage(_props: PluginSettingsPageProps) {
   const initial = useMemo(() => mergeDefaults(configQuery.data), [configQuery.data]);
 
   const [form, setForm] = useState<ConfigShape>(() => mergeDefaults(null));
-  const [deskMapText, setDeskMapText] = useState<string>(() =>
-    JSON.stringify(DEFAULT_CONFIG.agentDeskMap, null, 2),
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
-  // Hydrate the form once config arrives (and on subsequent refreshes if the
-  // user hasn't edited yet — we key off configQuery.data identity).
   useEffect(() => {
     if (!configQuery.data) return;
     setForm(initial);
-    setDeskMapText(JSON.stringify(initial.agentDeskMap, null, 2));
   }, [configQuery.data, initial]);
 
   function setField<K extends keyof ConfigShape>(key: K, value: ConfigShape[K]) {
@@ -126,26 +93,22 @@ export function SettingsPage(_props: PluginSettingsPageProps) {
     setError(null);
     setStatus(null);
 
-    let deskMap: ConfigShape["agentDeskMap"];
     try {
-      const parsed = JSON.parse(deskMapText || "{}");
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("agentDeskMap must be a JSON object");
-      }
-      deskMap = parsed;
-    } catch (err) {
-      setError(`Desk map JSON: ${err instanceof Error ? err.message : String(err)}`);
+      // Surface a clear error before the server does for the most common
+      // misconfig: a bare hostname with no scheme.
+      new URL(form.officeUrl);
+    } catch {
+      setError("Office URL must be absolute — include https:// or http://.");
       return;
     }
 
-    const next: ConfigShape = { ...form, agentDeskMap: deskMap };
     setSaving(true);
     try {
       const response = await fetch(`/api/plugins/${PLUGIN_ID}/config`, {
         method: "POST",
         credentials: "include",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ configJson: next }),
+        body: JSON.stringify({ configJson: form }),
       });
       if (!response.ok) {
         const text = await response.text();
@@ -169,80 +132,34 @@ export function SettingsPage(_props: PluginSettingsPageProps) {
       <div>
         <h2 style={{ margin: 0, fontSize: 18 }}>Claw3D Settings</h2>
         <p style={{ margin: "4px 0 0", fontSize: 12, opacity: 0.7 }}>
-          Camera defaults, theme colours, and which agents sit at which desks.
+          The dashboard tile and sidebar link point at the deployed Claw3D app.
+          Change the URL here if you self-host it somewhere other than the
+          default.
         </p>
       </div>
 
       <label style={fieldStyle}>
-        <span>Camera yaw (degrees, −180 to 180)</span>
+        <span>Office URL</span>
         <input
           style={inputStyle}
-          type="number"
-          min={-180}
-          max={180}
-          value={form.cameraYawDeg}
-          onChange={(e) => setField("cameraYawDeg", Number(e.target.value))}
-        />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>Camera pitch (degrees, 10 to 89)</span>
-        <input
-          style={inputStyle}
-          type="number"
-          min={10}
-          max={89}
-          value={form.cameraPitchDeg}
-          onChange={(e) => setField("cameraPitchDeg", Number(e.target.value))}
-        />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>Floor colour (hex)</span>
-        <input
-          style={inputStyle}
-          type="text"
-          value={form.floorColor}
-          onChange={(e) => setField("floorColor", e.target.value)}
-        />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>Accent colour (hex)</span>
-        <input
-          style={inputStyle}
-          type="text"
-          value={form.accentColor}
-          onChange={(e) => setField("accentColor", e.target.value)}
-        />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>Agent poll interval (seconds, 2 to 600)</span>
-        <input
-          style={inputStyle}
-          type="number"
-          min={2}
-          max={600}
-          value={form.pollIntervalSeconds}
-          onChange={(e) =>
-            setField("pollIntervalSeconds", Number(e.target.value))
-          }
-        />
-      </label>
-
-      <label style={fieldStyle}>
-        <span>Agent → desk mapping (JSON)</span>
-        <textarea
-          style={textareaStyle}
-          value={deskMapText}
-          onChange={(e) => setDeskMapText(e.target.value)}
-          spellCheck={false}
+          type="url"
+          value={form.officeUrl}
+          placeholder={DEFAULT_CONFIG.officeUrl}
+          onChange={(e) => setField("officeUrl", e.target.value)}
+          required
         />
         <small style={{ opacity: 0.7, fontSize: 11 }}>
-          Keys are agent UUIDs. Values are {"{ deskId: string }"}. Desk IDs are
-          defined by the active 3D scene version.
+          Include the scheme. Example: https://office.mimrlabs.cloud
         </small>
+      </label>
+
+      <label style={{ ...fieldStyle, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={form.openInNewTab}
+          onChange={(e) => setField("openInNewTab", e.target.checked)}
+        />
+        <span>Open in a new tab</span>
       </label>
 
       {error && (

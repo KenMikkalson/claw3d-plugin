@@ -1,12 +1,18 @@
 /**
  * Claw3D plugin — shared constants.
  *
- * IDs and export names are declared once here so the manifest, worker, and UI
- * stay in sync when any of them change.
+ * The plugin is a launcher shim for the real Claw3D app
+ * (https://github.com/iamlukethedev/Claw3D), which runs as its own Next.js
+ * container. We originally shipped an in-dashboard 3D scene here — the pivot
+ * was driven by the realisation that Claw3D is a fully-featured product we
+ * should deploy alongside Paperclip and link to, not reimplement.
+ *
+ * IDs and export names live here so the manifest, worker, and UI stay in
+ * sync across edits.
  */
 
 export const PLUGIN_ID = "mimrlabs-claw3d";
-export const PLUGIN_VERSION = "0.1.0";
+export const PLUGIN_VERSION = "0.2.0";
 
 /** Slot IDs referenced from the manifest. */
 export const SLOT_IDS = {
@@ -20,26 +26,12 @@ export const EXPORT_NAMES = {
   dashboardWidget: "DashboardWidget",
   sidebar: "SidebarLink",
   settingsPage: "SettingsPage",
-  officeLauncher: "OfficeLauncher",
-} as const;
-
-/** Launcher ID (full-screen office modal). */
-export const LAUNCHER_IDS = {
-  office: "claw3d-office-launcher",
 } as const;
 
 /** Keys used by `usePluginData` / `ctx.data.register`. */
 export const DATA_KEYS = {
-  agents: "agents",
-  recentActivity: "recent-activity",
-  officeLayout: "office-layout",
-  /** Operator config snapshot (theme colours, camera defaults, poll interval). */
+  /** Operator config snapshot (officeUrl, openInNewTab). */
   config: "plugin-config",
-} as const;
-
-/** Worker stream channels consumed by `usePluginStream`. */
-export const STREAM_CHANNELS = {
-  activity: "activity",
 } as const;
 
 /**
@@ -47,22 +39,10 @@ export const STREAM_CHANNELS = {
  * `instanceConfigSchema`. Central source of truth for initial values.
  */
 export const DEFAULT_CONFIG = {
-  /** Camera yaw in degrees. 0 = facing north, 90 = east. */
-  cameraYawDeg: 35,
-  /** Camera pitch in degrees (looking down from above). */
-  cameraPitchDeg: 55,
-  /** Base ground theme colour (hex). */
-  floorColor: "#1e293b",
-  /** Accent colour used for agent desks/avatars. */
-  accentColor: "#38bdf8",
-  /** How often, in seconds, the widget re-polls agent status. */
-  pollIntervalSeconds: 10,
-  /**
-   * JSON object mapping `agent.id` → `{ deskId: string }`. Operators edit this
-   * through the SettingsPage to pin agents to specific desks in the office.
-   * Shape kept loose in the schema because desk IDs are scene-version-specific.
-   */
-  agentDeskMap: {} as Record<string, { deskId: string }>,
+  /** URL of the deployed Claw3D app. Overridden via SettingsPage per instance. */
+  officeUrl: "https://office.mimrlabs.cloud",
+  /** Whether the launcher should open in a new tab (true) or replace the current one. */
+  openInNewTab: true,
 } as const;
 
 export type Claw3dConfig = typeof DEFAULT_CONFIG;

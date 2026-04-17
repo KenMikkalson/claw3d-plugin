@@ -1,7 +1,7 @@
 {
   "name": "@mimrlabs/plugin-claw3d",
-  "version": "0.1.0",
-  "description": "Claw3D — 3D office view of MIMR Labs agents, as a Paperclip plugin.",
+  "version": "0.2.0",
+  "description": "Paperclip launcher tile for the Claw3D 3D office app.",
   "license": "MIT",
   "type": "module",
   "private": true,
