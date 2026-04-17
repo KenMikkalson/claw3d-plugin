@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+
+# Claude Code session data
+.claude/
+
+# Snapshotted Paperclip SDK — tracked so the repo builds without a Paperclip
+# workspace, but excluded from package tarballs. See README for refresh steps.
+.paperclip-sdk/**/node_modules/
+
+# Local reference copy of upstream example plugins — useful when authoring,
+# not shipped with the plugin.
+.reference/
