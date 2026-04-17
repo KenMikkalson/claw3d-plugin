@@ -31,39 +31,71 @@ interface DeskPlacement {
   status: string | null;
 }
 
+/**
+ * Normalise an agent's display name into a desk suffix candidate so we can
+ * match "Týr" → "tyr", "MIM-1 · Odin" → "odin", etc. against desk IDs of the
+ * form `desk-<name>`. Strips combining marks and non-alphanumeric characters.
+ */
+function nameSuffixes(name: string): string[] {
+  const folded = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip combining marks (ý → y)
+    .toLowerCase();
+  // Split on anything that isn't [a-z0-9] and keep the pieces that are non-empty.
+  const parts = folded.split(/[^a-z0-9]+/).filter(Boolean);
+  // Return most-specific-first so "dev-odin" doesn't match a desk-dev first.
+  return [parts.join("-"), ...parts.reverse()];
+}
+
 function layoutAgents(
   agents: OfficeSceneProps["agents"],
   deskIds: OfficeSceneProps["deskIds"],
   deskMap: OfficeSceneProps["deskMap"],
 ): DeskPlacement[] {
-  // Start with the explicit operator-configured assignments…
   const placements = new Map<string, DeskPlacement>();
   for (const deskId of deskIds) {
     placements.set(deskId, { deskId, agentId: null, agentName: null, status: null });
   }
   const seated = new Set<string>();
 
+  const seat = (slot: DeskPlacement, agent: OfficeSceneProps["agents"][number]) => {
+    slot.agentId = agent.id;
+    slot.agentName = agent.name;
+    slot.status = agent.status;
+    seated.add(agent.id);
+  };
+
+  // 1. Explicit operator-configured assignments win.
   for (const agent of agents) {
     const assignment = deskMap[agent.id];
     if (!assignment) continue;
     const slot = placements.get(assignment.deskId);
     if (!slot || slot.agentId) continue;
-    slot.agentId = agent.id;
-    slot.agentName = agent.name;
-    slot.status = agent.status;
-    seated.add(agent.id);
+    seat(slot, agent);
   }
 
-  // …then fill remaining desks with any unseated agents, stably.
+  // 2. Fall back to a name match: agent "Odin" prefers `desk-odin`. This keeps
+  //    the default Norse layout sensible without requiring operator config.
+  for (const agent of agents) {
+    if (seated.has(agent.id)) continue;
+    for (const suffix of nameSuffixes(agent.name)) {
+      if (!suffix) continue;
+      const deskId = `desk-${suffix}`;
+      const slot = placements.get(deskId);
+      if (!slot || slot.agentId) continue;
+      seat(slot, agent);
+      break;
+    }
+  }
+
+  // 3. Finally fill remaining desks in order with any still-unseated agents.
   const remaining = agents.filter((a) => !seated.has(a.id));
   let cursor = 0;
   for (const slot of placements.values()) {
     if (slot.agentId) continue;
     const next = remaining[cursor++];
     if (!next) break;
-    slot.agentId = next.id;
-    slot.agentName = next.name;
-    slot.status = next.status;
+    seat(slot, next);
   }
 
   return [...placements.values()];
